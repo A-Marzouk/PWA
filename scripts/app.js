@@ -200,7 +200,7 @@
     // on the beginning of the app get these cities and update the cards :
     document.addEventListener('DOMContentLoaded', function() {
         window.localforage.getItem('selectedCities',function (err,cityList) {
-            if(cityList.length > 0){
+            if(cityList){
                 app.selectedCities = cityList;
                 cityList.forEach(function (city) {
                     app.getForecast(city.key, city.label);
@@ -222,7 +222,7 @@
 
     // assigning service workers.
     if('serviceWorker' in navigator){
-        navigator.serviceWorker.register('/service-worker.js')
+        navigator.serviceWorker.register('service-worker.js')
             .then(function (registration) {
                 console.log('Service worker registered',registration);
             });
