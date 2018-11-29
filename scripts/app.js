@@ -1,17 +1,6 @@
 (function() {
   'use strict';
 
-  // assigning service workers.
-    if('serviceWorker' in navigator){
-        navigator.serviceWorker.register('/service-worker.js')
-            .then(function (registration) {
-                console.log('Service worker registered',registration);
-            });
-    }
-    else{
-        console.log('Service worker is not supported');
-    }
-
   var weatherAPIUrlBase = 'https://publicdata-weather.firebaseio.com/';
 
   var app = {
@@ -230,6 +219,17 @@
     app.saveSelectedCitiesToDB = function () {
         window.localforage.setItem('selectedCities',app.selectedCities);
     };
+
+    // assigning service workers.
+    if('serviceWorker' in navigator){
+        navigator.serviceWorker.register('/service-worker.js')
+            .then(function (registration) {
+                console.log('Service worker registered',registration);
+            });
+    }
+    else{
+        console.log('Service worker is not supported');
+    }
 
 
 })();
