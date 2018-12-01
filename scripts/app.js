@@ -1,5 +1,33 @@
+
 (function() {
   'use strict';
+
+  var injectedForecast = {
+    key: 'newyork',
+    label: 'New York, NY',
+    currently: {
+      time: 1453489481,
+      summary: 'Clear',
+      icon: 'partly-cloudy-day',
+      temperature: 52.74,
+      apparentTemperature: 74.34,
+      precipProbability: 0.20,
+      humidity: 0.77,
+      windBearing: 125,
+      windSpeed: 1.52
+    },
+    daily: {
+      data: [
+        {icon: 'clear-day', temperatureMax: 55, temperatureMin: 34},
+        {icon: 'rain', temperatureMax: 55, temperatureMin: 34},
+        {icon: 'snow', temperatureMax: 55, temperatureMin: 34},
+        {icon: 'sleet', temperatureMax: 55, temperatureMin: 34},
+        {icon: 'fog', temperatureMax: 55, temperatureMin: 34},
+        {icon: 'wind', temperatureMax: 55, temperatureMin: 34},
+        {icon: 'partly-cloudy-day', temperatureMax: 55, temperatureMin: 34}
+      ]
+    }
+  };
 
   var weatherAPIUrlBase = 'https://publicdata-weather.firebaseio.com/';
 
@@ -14,32 +42,6 @@
     daysOfWeek: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
   };
 
-    var injectedForecast = {
-        key: 'newyork',
-        label: 'New York, NY',
-        currently: {
-            time: 1453489481,
-            summary: 'Clear',
-            icon: 'partly-cloudy-day',
-            temperature: 52.74,
-            apparentTemperature: 74.34,
-            precipProbability: 0.20,
-            humidity: 0.77,
-            windBearing: 125,
-            windSpeed: 1.52
-        },
-        daily: {
-            data: [
-                {icon: 'clear-day', temperatureMax: 55, temperatureMin: 34},
-                {icon: 'rain', temperatureMax: 55, temperatureMin: 34},
-                {icon: 'snow', temperatureMax: 55, temperatureMin: 34},
-                {icon: 'sleet', temperatureMax: 55, temperatureMin: 34},
-                {icon: 'fog', temperatureMax: 55, temperatureMin: 34},
-                {icon: 'wind', temperatureMax: 55, temperatureMin: 34},
-                {icon: 'partly-cloudy-day', temperatureMax: 55, temperatureMin: 34}
-            ]
-        }
-    };
 
   /*****************************************************************************
    *
@@ -66,8 +68,7 @@
     var label = selected.textContent;
     app.getForecast(key, label);
     app.selectedCities.push({key: key, label: label});
-    // save selected cities to the database
-    app.saveSelectedCitiesToDB();
+    app.saveSelectedCities();
     app.toggleAddDialog(false);
   });
 
@@ -104,9 +105,16 @@
       app.container.appendChild(card);
       app.visibleCards[data.key] = card;
     }
+
+    // Verify data is newer than what we already have, if not, bail.
+    var dateElem = card.querySelector('.date');
+    if (dateElem.getAttribute('data-dt') >= data.currently.time) {
+      return;
+    }
+
+    dateElem.setAttribute('data-dt', data.currently.time);
+    dateElem.textContent = new Date(data.currently.time * 1000);
     card.querySelector('.description').textContent = data.currently.summary;
-    card.querySelector('.date').textContent =
-      new Date(data.currently.time * 1000);
     card.querySelector('.current .icon').classList.add(data.currently.icon);
     card.querySelector('.current .temperature .value').textContent =
       Math.round(data.currently.temperature);
@@ -153,25 +161,18 @@
   // Gets a forecast for a specific city and update the card with the data
   app.getForecast = function(key, label) {
     var url = weatherAPIUrlBase + key + '.json';
-    // A.1 here we will get the data from cache before the api
-      if ('caches' in window) {
-          caches.match(url).then(function(response) {
-              if (response) {
-                  response.json().then(function(json) {
-                      // update only if the request is still pending !
-                      if(app.hasRequestPending){
-                          json.key = key;
-                          json.label = label;
-                          app.updateForecastCard(json);
-                          console.log('update from cache');
-                      }
-                  });
-              }
+    if ('caches' in window) {
+      caches.match(url).then(function(response) {
+        if (response) {
+          response.json().then(function(json) {
+            json.key = key;
+            json.label = label;
+            app.updateForecastCard(json);
           });
-      }
-
+        }
+      });
+    }
     // Make the XHR to get the data, then update the card
-    app.hasRequestPending = true ;
     var request = new XMLHttpRequest();
     request.onreadystatechange = function() {
       if (request.readyState === XMLHttpRequest.DONE) {
@@ -180,8 +181,6 @@
           response.key = key;
           response.label = label;
           app.updateForecastCard(response);
-          console.log('update from API');
-          app.hasRequestPending = false ;
         }
       }
     };
@@ -197,39 +196,33 @@
     });
   };
 
-    // on the beginning of the app get these cities and update the cards :
-    document.addEventListener('DOMContentLoaded', function() {
-        window.localforage.getItem('selectedCities',function (err,cityList) {
-            if(cityList){
-                app.selectedCities = cityList;
-                cityList.forEach(function (city) {
-                    app.getForecast(city.key, city.label);
-                })
-            }else{
-                // just show the injected card
-                app.updateForecastCard(injectedForecast);
-                app.selectedCities = [
-                    {key:injectedForecast.key, label:injectedForecast.label}
-                ];
-                app.saveSelectedCitiesToDB();
-            }
+  app.saveSelectedCities = function() {
+    window.localforage.setItem('selectedCities', app.selectedCities);
+  };
+
+  document.addEventListener('DOMContentLoaded', function() {
+    window.localforage.getItem('selectedCities', function(err, cityList) {
+      if (cityList) {
+        app.selectedCities = cityList;
+        app.selectedCities.forEach(function(city) {
+          app.getForecast(city.key, city.label);
         });
-    });
+      } else {
+        app.updateForecastCard(injectedForecast);
+        app.selectedCities = [
+          {key: injectedForecast.key, label: injectedForecast.label}
+        ];
+        app.saveSelectedCities();
+      }
+    });    
+  });
 
-    app.saveSelectedCitiesToDB = function () {
-        window.localforage.setItem('selectedCities',app.selectedCities);
-    };
-
-    // assigning service workers.
-    if('serviceWorker' in navigator){
-        navigator.serviceWorker.register('service-worker.js')
-            .then(function (registration) {
-                console.log('Service worker registered',registration);
-            });
-    }
-    else{
-        console.log('Service worker is not supported');
-    }
-
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker
+     .register('/service-worker.js')
+     .then(function() { 
+        console.log('Service Worker Registered'); 
+      });
+  }
 
 })();
